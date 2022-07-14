@@ -1,4 +1,4 @@
-use simple_text_template::context::{ContextBuilder, ObjectBuilder};
+use simple_text_template::context::{Builder, ContextBuilder, ObjectBuilder};
 use simple_text_template::Renderer;
 
 fn main() {
