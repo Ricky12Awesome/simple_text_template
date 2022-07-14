@@ -1,2 +1,13 @@
-# simple_text_template
-A Simple lightweight templating engine that uses a simple easy to understand format
+# Simple Text Template
+
+Making this since the other templating engines don't meet my needs,
+the closest one was [TinyTemplate](https://crates.io/crates/tinytemplate),
+but I don't like its syntax, and how it does whitespace
+
+Goals
+-----
+
+- Simple
+- Lightweight
+- Minimal
+- Easy to read
