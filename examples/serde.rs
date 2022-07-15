@@ -1,5 +1,6 @@
 use serde::Serialize;
-use simple_text_template::context::serde::to_context;
+use simple_text_template::context::serde::ToContext;
+use simple_text_template::render;
 use std::collections::HashMap;
 
 #[derive(Serialize, Debug, Clone)]
@@ -8,6 +9,8 @@ struct Context<'a> {
   items: Vec<&'a str>,
   object: HashMap<&'a str, &'a str>,
 }
+
+impl ToContext for Context<'static> {}
 
 impl Default for Context<'static> {
   fn default() -> Self {
@@ -24,7 +27,9 @@ impl Default for Context<'static> {
 }
 
 fn main() {
-  let context = to_context(&Context::default()).unwrap();
+  let context = Context::default().to_context().unwrap();
+  let text = "";
+  let rendered = render(&context, text).unwrap();
 
-  println!("{context:#?}");
+  println!("{rendered}");
 }

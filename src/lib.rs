@@ -1,20 +1,12 @@
-use context::Context;
+use crate::context::Context;
+use crate::renderer::{Error, Renderer};
 
 pub mod context;
+pub mod renderer;
 
-pub struct Renderer {
-  _context: Context,
-}
-
-impl Renderer {
-  pub fn new(context: Context) -> Self {
-    Self { _context: context }
-  }
-
-  pub fn render<S>(&self, text: S) -> String
-  where
-    S: ToString,
-  {
-    text.to_string()
-  }
+pub fn render<S>(context: &Context, text: S) -> Result<String, Error>
+where
+  S: AsRef<str>,
+{
+  Renderer::new(context).render(text)
 }

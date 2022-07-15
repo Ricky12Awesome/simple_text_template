@@ -212,8 +212,8 @@ impl From<HashMap<&str, Value>> for Value {
 #[cfg(feature = "serde")]
 #[allow(unused_variables)]
 pub mod serde {
+  use crate::context::Context;
   use crate::context::Value;
-  use crate::Context;
   use serde::ser::{
     SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
     SerializeTupleStruct, SerializeTupleVariant,
@@ -233,7 +233,7 @@ pub mod serde {
     Unsupported(&'static str),
     #[error("key must be a string")]
     KeyNotString,
-    #[error("no value was provided for key {0}")]
+    #[error("no value was provided for key: {0}")]
     NoValueForKey(String),
     #[error("no key was provided for value")]
     NoKeyForValue,
@@ -606,13 +606,24 @@ pub mod serde {
     }
   }
 
-  pub fn to_context<S>(value: &S) -> Result<Context, Error>
-  where
-    S: Serialize,
-  {
-    match value.serialize(Serializer)? {
-      Value::Object(contents) => Ok(Context { contents }),
-      _ => Err(Error::Unsupported("context must be an object")),
+  pub trait ToContext {
+    fn to_context(&self) -> Result<Context, Error>
+    where
+      Self: Serialize,
+    {
+      Context::from_serialize(&self)
+    }
+  }
+
+  impl Context {
+    pub fn from_serialize<S>(value: &S) -> Result<Context, Error>
+    where
+      S: Serialize,
+    {
+      match value.serialize(Serializer)? {
+        Value::Object(contents) => Ok(Context { contents }),
+        _ => Err(Error::Unsupported("context must be an object")),
+      }
     }
   }
 }
