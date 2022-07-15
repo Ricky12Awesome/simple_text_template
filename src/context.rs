@@ -9,11 +9,23 @@ pub struct Context {
 }
 
 impl Context {
-  pub fn get_value<S>(&self, value: S) -> Option<&Value>
+  pub fn get_value<S>(&self, path: S) -> Option<&Value>
   where
     S: ToString,
   {
-    self.contents.get(&value.to_string())
+    let path = path.to_string();
+    let mut path = path.split('.');
+    let mut result = self.contents.get(path.next().unwrap());
+
+    for name in path {
+      result = match &result {
+        Some(Value::Object(contents)) => contents.get(name),
+        Some(_) => None,
+        value => *value,
+      };
+    }
+
+    result
   }
 
   pub fn get_bool<S>(&self, value: S) -> Option<bool>

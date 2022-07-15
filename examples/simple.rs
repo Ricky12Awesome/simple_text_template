@@ -1,5 +1,5 @@
 use simple_text_template::context::{Builder, ContextBuilder, ObjectBuilder};
-use simple_text_template::Renderer;
+use simple_text_template::render;
 
 fn main() {
   let context = ContextBuilder::new()
@@ -12,14 +12,18 @@ fn main() {
   println!("items: {:?}", context.get_string("items"));
   println!("items: {:?}", context.get_list("items"));
   println!("object: {:?}", context.get_object("object"));
+  println!("object: {:?}", context.get_value("object.value"));
+  println!("object: {:?}", context.get_value("object.value.none"));
 
-  let renderer = Renderer::new(context);
   let text = r#"$item
+
 $object.value
+
 $for item in items: $item
+
 "#;
 
-  let rendered = renderer.render(text);
+  let rendered = render(&context, text).unwrap();
 
   println!("{rendered}");
 }
