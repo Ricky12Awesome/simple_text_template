@@ -16,6 +16,10 @@ optional = true
 version = "1.0"
 optional = true
 
+[[example]]
+name = "serde"
+required-features = ["serde", "serde/derive"]
+
 [features]
 default = []
 json = ["serde_json"]

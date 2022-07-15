@@ -209,29 +209,29 @@ impl From<HashMap<&str, Value>> for Value {
 #[cfg(feature = "serde")]
 #[allow(unused_parens, unused_variables, dead_code)]
 pub mod serde {
-  use crate::context::{ContextBuilder, Value};
+  use crate::context::Value;
+  use crate::Context;
   use serde::ser::{
     SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
     SerializeTupleStruct, SerializeTupleVariant,
   };
-  use serde::{Serialize, Serializer};
+  use serde::Serialize;
   use std::fmt::Display;
   use thiserror::Error;
 
-  pub struct ContextSerializer {
-    builder: ContextBuilder,
-  }
+  #[derive(Debug)]
+  pub struct Serializer;
 
   #[derive(Error, Debug)]
   #[error("{}")]
-  pub enum ContextSerializerError {
+  pub enum Error {
     #[error("Unsupported: {0}")]
     Unsupported(&'static str),
     #[error("{0}")]
     Custom(String),
   }
 
-  impl serde::ser::Error for ContextSerializerError {
+  impl serde::ser::Error for Error {
     fn custom<T>(msg: T) -> Self
     where
       T: Display,
@@ -240,146 +240,19 @@ pub mod serde {
     }
   }
 
-  impl SerializeSeq for ContextSerializer {
+  impl serde::Serializer for Serializer {
     type Ok = Value;
-    type Error = ContextSerializerError;
-
-    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      Err(Self::Error::Unsupported("seq trait"))
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("seq trait end"))
-    }
-  }
-
-  impl SerializeTuple for ContextSerializer {
-    type Ok = Value;
-    type Error = ContextSerializerError;
-
-    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      Err(Self::Error::Unsupported("tuple trait"))
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("tuple trait end"))
-    }
-  }
-
-  impl SerializeTupleStruct for ContextSerializer {
-    type Ok = Value;
-    type Error = ContextSerializerError;
-
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      Err(Self::Error::Unsupported("tuple struct trait"))
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("tuple struct trait end"))
-    }
-  }
-
-  impl SerializeTupleVariant for ContextSerializer {
-    type Ok = Value;
-    type Error = ContextSerializerError;
-
-    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      Err(Self::Error::Unsupported("tuple variant trait"))
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("tuple variant trait end"))
-    }
-  }
-
-  impl SerializeMap for ContextSerializer {
-    type Ok = Value;
-    type Error = ContextSerializerError;
-
-    fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      Err(Self::Error::Unsupported("map trait"))
-    }
-
-    fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      Err(Self::Error::Unsupported("map trait"))
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("map trait end"))
-    }
-  }
-
-  impl SerializeStruct for ContextSerializer {
-    type Ok = Value;
-    type Error = ContextSerializerError;
-
-    fn serialize_field<T: ?Sized>(
-      &mut self,
-      key: &'static str,
-      value: &T,
-    ) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      Err(Self::Error::Unsupported("struct trait"))
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("struct trait end"))
-    }
-  }
-
-  impl SerializeStructVariant for ContextSerializer {
-    type Ok = Value;
-    type Error = ContextSerializerError;
-
-    fn serialize_field<T: ?Sized>(
-      &mut self,
-      key: &'static str,
-      value: &T,
-    ) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      Err(Self::Error::Unsupported("struct variant"))
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("struct variant end"))
-    }
-  }
-
-  impl Serializer for ContextSerializer {
-    type Ok = Value;
-    type Error = ContextSerializerError;
-    type SerializeSeq = Self;
-    type SerializeTuple = Self;
-    type SerializeTupleStruct = Self;
-    type SerializeTupleVariant = Self;
-    type SerializeMap = Self;
-    type SerializeStruct = Self;
-    type SerializeStructVariant = Self;
+    type Error = Error;
+    type SerializeSeq = ListSerializer;
+    type SerializeTuple = ListSerializer;
+    type SerializeTupleStruct = ListSerializer;
+    type SerializeTupleVariant = Unsupported;
+    type SerializeMap = ObjectSerializer;
+    type SerializeStruct = ObjectSerializer;
+    type SerializeStructVariant = Unsupported;
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
-      Ok(Self::Ok::Bool(v))
+      Ok(Value::Bool(v))
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
@@ -427,15 +300,15 @@ pub mod serde {
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-      Ok(Self::Ok::String(v.to_string()))
+      Ok(Value::String(v.to_string()))
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("bytes"))
+      Err(Error::Unsupported("bytes"))
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-      Ok(Self::Ok::None)
+      Ok(Value::None)
     }
 
     fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
@@ -446,11 +319,11 @@ pub mod serde {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-      Ok(Self::Ok::None)
+      Err(Error::Unsupported("unit"))
     }
 
     fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("unit struct"))
+      Err(Error::Unsupported("unit struct"))
     }
 
     fn serialize_unit_variant(
@@ -459,7 +332,7 @@ pub mod serde {
       variant_index: u32,
       variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
-      Err(Self::Error::Unsupported("unit variant"))
+      Err(Error::Unsupported("unit variant"))
     }
 
     fn serialize_newtype_struct<T: ?Sized>(
@@ -470,7 +343,7 @@ pub mod serde {
     where
       T: Serialize,
     {
-      Err(Self::Error::Unsupported("newtype struct"))
+      Err(Error::Unsupported("newtype struct"))
     }
 
     fn serialize_newtype_variant<T: ?Sized>(
@@ -483,15 +356,15 @@ pub mod serde {
     where
       T: Serialize,
     {
-      Err(Self::Error::Unsupported("newtype variant"))
+      Err(Error::Unsupported("newtype variant"))
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-      Err(Self::Error::Unsupported("seq"))
+      Err(Error::Unsupported("seq"))
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-      Err(Self::Error::Unsupported("tuple"))
+      Err(Error::Unsupported("tuple"))
     }
 
     fn serialize_tuple_struct(
@@ -499,7 +372,7 @@ pub mod serde {
       name: &'static str,
       len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-      Err(Self::Error::Unsupported("tuple struct"))
+      Err(Error::Unsupported("tuple struct"))
     }
 
     fn serialize_tuple_variant(
@@ -509,11 +382,11 @@ pub mod serde {
       variant: &'static str,
       len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-      Err(Self::Error::Unsupported("tuple variant"))
+      Err(Error::Unsupported("tuple variant"))
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-      Err(Self::Error::Unsupported("map"))
+      Err(Error::Unsupported("map"))
     }
 
     fn serialize_struct(
@@ -521,7 +394,7 @@ pub mod serde {
       name: &'static str,
       len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-      Err(Self::Error::Unsupported("struct"))
+      Err(Error::Unsupported("struct"))
     }
 
     fn serialize_struct_variant(
@@ -531,7 +404,148 @@ pub mod serde {
       variant: &'static str,
       len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-      Err(Self::Error::Unsupported("struct variant"))
+      Err(Error::Unsupported("struct variant"))
+    }
+  }
+
+  pub struct Unsupported;
+  pub struct ListSerializer {}
+  pub struct ObjectSerializer {}
+
+  impl SerializeTupleVariant for Unsupported {
+    type Ok = Value;
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      Err(Error::Unsupported("enum tuple variant"))
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+      Err(Error::Unsupported("enum tuple variant"))
+    }
+  }
+
+  impl SerializeStructVariant for Unsupported {
+    type Ok = Value;
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(
+      &mut self,
+      key: &'static str,
+      value: &T,
+    ) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      Err(Error::Unsupported("enum struct variant"))
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+      Err(Error::Unsupported("enum struct variant"))
+    }
+  }
+
+  impl SerializeSeq for ListSerializer {
+    type Ok = Value;
+    type Error = Error;
+
+    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      todo!()
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+      todo!()
+    }
+  }
+
+  impl SerializeTuple for ListSerializer {
+    type Ok = Value;
+    type Error = Error;
+
+    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      todo!()
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+      todo!()
+    }
+  }
+
+  impl SerializeTupleStruct for ListSerializer {
+    type Ok = Value;
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      todo!()
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+      todo!()
+    }
+  }
+
+  impl SerializeStruct for ObjectSerializer {
+    type Ok = Value;
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(
+      &mut self,
+      key: &'static str,
+      value: &T,
+    ) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      todo!()
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+      todo!()
+    }
+  }
+
+  impl SerializeMap for ObjectSerializer {
+    type Ok = Value;
+    type Error = Error;
+
+    fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      todo!()
+    }
+
+    fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      todo!()
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+      todo!()
+    }
+  }
+
+  pub fn to_context<S>(value: &S) -> Result<Context, Error>
+  where
+    S: Serialize,
+  {
+    match value.serialize(Serializer)? {
+      Value::Object(contents) => Ok(Context { contents }),
+      _ => Err(Error::Unsupported("context must be an object")),
     }
   }
 }
