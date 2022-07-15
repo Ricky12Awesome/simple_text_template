@@ -216,17 +216,24 @@ pub mod serde {
     SerializeTupleStruct, SerializeTupleVariant,
   };
   use serde::Serialize;
+  use std::collections::HashMap;
   use std::fmt::Display;
   use thiserror::Error;
 
   #[derive(Debug)]
-  pub struct Serializer;
+  struct Serializer;
 
   #[derive(Error, Debug)]
   #[error("{}")]
   pub enum Error {
-    #[error("Unsupported: {0}")]
+    #[error("unsupported: {0}")]
     Unsupported(&'static str),
+    #[error("key must be a string")]
+    KeyNotString,
+    #[error("no value was provided for key {0}")]
+    NoValueForKey(String),
+    #[error("no key was provided for value")]
+    NoKeyForValue,
     #[error("{0}")]
     Custom(String),
   }
@@ -360,11 +367,13 @@ pub mod serde {
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-      Err(Error::Unsupported("seq"))
+      Ok(ListSerializer {
+        elements: Vec::with_capacity(len.unwrap_or(0)),
+      })
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-      Err(Error::Unsupported("tuple"))
+      self.serialize_seq(Some(len))
     }
 
     fn serialize_tuple_struct(
@@ -386,15 +395,18 @@ pub mod serde {
     }
 
     fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-      Err(Error::Unsupported("map"))
+      Ok(ObjectSerializer {
+        contents: HashMap::with_capacity(len.unwrap_or(0)),
+        next_key: None,
+      })
     }
 
     fn serialize_struct(
       self,
-      name: &'static str,
+      _name: &'static str,
       len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-      Err(Error::Unsupported("struct"))
+      self.serialize_map(Some(len))
     }
 
     fn serialize_struct_variant(
@@ -408,9 +420,7 @@ pub mod serde {
     }
   }
 
-  pub struct Unsupported;
-  pub struct ListSerializer {}
-  pub struct ObjectSerializer {}
+  struct Unsupported;
 
   impl SerializeTupleVariant for Unsupported {
     type Ok = Value;
@@ -448,6 +458,10 @@ pub mod serde {
     }
   }
 
+  struct ListSerializer {
+    elements: Vec<Value>,
+  }
+
   impl SerializeSeq for ListSerializer {
     type Ok = Value;
     type Error = Error;
@@ -456,11 +470,14 @@ pub mod serde {
     where
       T: Serialize,
     {
-      todo!()
+      let element = value.serialize(Serializer)?;
+      self.elements.push(element);
+
+      Ok(())
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-      todo!()
+      Ok(Value::List(self.elements))
     }
   }
 
@@ -472,11 +489,11 @@ pub mod serde {
     where
       T: Serialize,
     {
-      todo!()
+      SerializeSeq::serialize_element(self, value)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-      todo!()
+      SerializeSeq::end(self)
     }
   }
 
@@ -488,11 +505,81 @@ pub mod serde {
     where
       T: Serialize,
     {
-      todo!()
+      SerializeTuple::serialize_element(self, value)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-      todo!()
+      SerializeTuple::end(self)
+    }
+  }
+
+  struct ObjectSerializer {
+    contents: HashMap<String, Value>,
+    next_key: Option<String>,
+  }
+
+  impl SerializeMap for ObjectSerializer {
+    type Ok = Value;
+    type Error = Error;
+
+    fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      if let Some(key) = &self.next_key {
+        return Err(Error::NoValueForKey(key.clone()));
+      }
+
+      match key.serialize(Serializer)? {
+        Value::String(key) => {
+          self.next_key = Some(key);
+          Ok(())
+        }
+        _ => Err(Error::KeyNotString),
+      }
+    }
+
+    fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
+    where
+      T: Serialize,
+    {
+      match &self.next_key {
+        Some(key) => {
+          let value = value.serialize(Serializer)?;
+
+          self.contents.insert(key.clone(), value);
+          self.next_key = None;
+
+          Ok(())
+        }
+        None => Err(Error::NoKeyForValue),
+      }
+    }
+
+    fn serialize_entry<K: ?Sized, V: ?Sized>(
+      &mut self,
+      key: &K,
+      value: &V,
+    ) -> Result<(), Self::Error>
+    where
+      K: Serialize,
+      V: Serialize,
+    {
+      let key = key.serialize(Serializer)?;
+      let value = value.serialize(Serializer)?;
+
+      match key {
+        Value::String(key) => {
+          self.contents.insert(key, value);
+
+          Ok(())
+        }
+        _ => Err(Error::KeyNotString),
+      }
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+      Ok(Value::Object(self.contents))
     }
   }
 
@@ -508,34 +595,11 @@ pub mod serde {
     where
       T: Serialize,
     {
-      todo!()
+      SerializeMap::serialize_entry(self, key, value)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-      todo!()
-    }
-  }
-
-  impl SerializeMap for ObjectSerializer {
-    type Ok = Value;
-    type Error = Error;
-
-    fn serialize_key<T: ?Sized>(&mut self, key: &T) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      todo!()
-    }
-
-    fn serialize_value<T: ?Sized>(&mut self, value: &T) -> Result<(), Self::Error>
-    where
-      T: Serialize,
-    {
-      todo!()
-    }
-
-    fn end(self) -> Result<Self::Ok, Self::Error> {
-      todo!()
+      SerializeMap::end(self)
     }
   }
 
