@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+#[cfg(feature = "serde_json")]
+pub use crate::context::serde_json::*;
+
 #[derive(Debug, Clone, Default)]
 pub struct Context {
   contents: HashMap<String, Value>,
@@ -207,7 +210,7 @@ impl From<HashMap<&str, Value>> for Value {
 }
 
 #[cfg(feature = "serde")]
-#[allow(unused_parens, unused_variables, dead_code)]
+#[allow(unused_variables)]
 pub mod serde {
   use crate::context::Value;
   use crate::Context;

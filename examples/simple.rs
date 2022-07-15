@@ -5,7 +5,7 @@ fn main() {
   let context = ContextBuilder::new()
     .add_value("item", "Stuff")
     .add_values("items", ["A", "B", "C"])
-    .add_value("object", ObjectBuilder::new().add_value("value", "string")) //
+    .add_value("object", ObjectBuilder::new().add_value("value", "string"))
     .build();
 
   println!("item: {:?}", context.get_string("item"));
