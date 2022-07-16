@@ -1,4 +1,3 @@
-use std::mem::size_of;
 use thiserror::Error;
 
 use crate::context::Context;
@@ -32,41 +31,47 @@ where
     }
   }
 
-  fn write_char(&mut self, ch: char) -> Result<(), Error> {
-    let mut buf = [0; size_of::<char>()];
-    let str = ch.encode_utf8(&mut buf);
-    self.write_str(str)
-  }
-
-  fn write_str(&mut self, str: &str) -> Result<(), Error> {
-    let bytes = str.as_bytes();
-    self.writer.write_all(bytes)?;
-    Ok(())
-  }
-
-  pub fn render(&mut self) -> Result<(), Error> {
-    let iter = TokenIter::new(self.source);
-
-    for token in iter {
-      writeln!(self.writer, "{token:?}")?;
-    }
-
-    writeln!(self.writer)?;
-
-    for token in TokenIter::new(self.source) {
+  fn _render(&mut self, text: &'a str) -> Result<(), Error> {
+    for token in TokenIter::new(text) {
       match token {
         Item::Normal(text) => write!(self.writer, "{text}")?,
-        Item::Var(var) => write!(self.writer, "${var}")?,
-        Item::For(_element, _elements, block) => {
-          for i in 0..3 {
-            write!(self.writer, "{block}")?
+        Item::Var(path) => {
+          let value = self
+            .context
+            .get_string(path)
+            .ok_or_else(|| Error::VariableNotFound(path.to_string()))?;
+
+          write!(self.writer, "{value}")?;
+        }
+        Item::If(path, not, true_block, false_block) => {
+          let condition = self
+            .context
+            .get_bool(path)
+            .ok_or_else(|| Error::VariableNotFound(path.to_string()))?;
+
+          if condition ^ not {
+            self._render(true_block)?;
+          } else if let Some(false_block) = false_block {
+            self._render(false_block)?;
           }
         }
-        Item::If(_condition, block) => write!(self.writer, "{block}")?,
+        Item::For(id, path, block) => {
+          let list = self
+            .context
+            .get_list(path)
+            .ok_or_else(|| Error::VariableNotFound(path.to_string()))?;
+
+          // TODO: for loop
+          write!(self.writer, "{block}")?;
+        }
       }
     }
 
     Ok(())
+  }
+
+  pub fn render(&mut self) -> Result<(), Error> {
+    self._render(self.source)
   }
 }
 
@@ -90,10 +95,10 @@ enum Token<'a> {
   Normal(&'a str),
   /// ${0}
   Var(&'a str),
+  /// $if {1}{0}: ${2} $else: ${3}
+  If(&'a str, bool, &'a str, Option<&'a str>),
   /// $for {0} in {1}: {2}
   For(&'a str, &'a str, &'a str),
-  /// $if {0}: ${1}
-  If(&'a str, &'a str),
 }
 
 type Item<'a> = Token<'a>;
@@ -176,7 +181,7 @@ impl<'a> TokenIter<'a> {
 
     self.source = &self.source[condition_end..];
 
-    self.hande_block(|block| Token::If(condition, block))
+    self.hande_block(|block| Token::If(condition, false, block, None))
   }
 
   fn handle_for_token(&mut self) -> Option<Item<'a>> {

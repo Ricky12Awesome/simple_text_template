@@ -122,6 +122,12 @@ impl ContextBuilder {
   pub fn new() -> Self {
     Self::default()
   }
+  
+  pub fn from_context(context: Context) -> Self {
+    Self {
+      contents: context.contents
+    }
+  }
 }
 
 impl Builder<Context> for ContextBuilder {
