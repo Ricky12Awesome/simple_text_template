@@ -1,29 +1,32 @@
+use std::io::stdout;
 use simple_text_template::context::{Builder, ContextBuilder, ObjectBuilder};
-use simple_text_template::render;
+use simple_text_template::render_to_writer;
 
 fn main() {
   let context = ContextBuilder::new()
-    .add_value("item", "Stuff")
-    .add_values("items", ["A", "B", "C"])
-    .add_value("object", ObjectBuilder::new().add_value("value", "string"))
+    .add_value("value", "Value")
+    .add_value("true", true)
+    .add_value("false", true)
+    .add_values("nums", ["2", "3", "4"])
+    .add_values("list", ["First", "Second", "Third"])
     .build();
 
-  println!("item: {:?}", context.get_string("item"));
-  println!("items: {:?}", context.get_string("items"));
-  println!("items: {:?}", context.get_list("items"));
-  println!("object: {:?}", context.get_object("object"));
-  println!("object: {:?}", context.get_value("object.value"));
-  println!("object: {:?}", context.get_value("object.value.none"));
-
-  let text = r#"$item
-
-$object.value
-
-$for item in items: $item
-
+  let text = r#"
+$value
+$if true: This is true
+$if false: You wont see this
+$if true:
+This is true
+$end
+$if false:
+You wont see this
+$end
+$for val in list:
+$val
+$end
+1 $for n in nums: $n $end 5 6
+1 $for n in nums: $n
 "#;
 
-  let rendered = render(&context, text).unwrap();
-
-  println!("{rendered}");
+  render_to_writer(&context, text, stdout()).unwrap();
 }

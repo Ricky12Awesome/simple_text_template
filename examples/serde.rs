@@ -1,6 +1,6 @@
 use serde::Serialize;
 use simple_text_template::context::serde::ToContext;
-use simple_text_template::render;
+use simple_text_template::render_to_string;
 use std::collections::HashMap;
 
 #[derive(Serialize, Debug, Clone)]
@@ -29,7 +29,7 @@ impl Default for Context<'static> {
 fn main() {
   let context = Context::default().to_context().unwrap();
   let text = "";
-  let rendered = render(&context, text).unwrap();
+  let rendered = render_to_string(&context, text).unwrap();
 
   println!("{rendered}");
 }
