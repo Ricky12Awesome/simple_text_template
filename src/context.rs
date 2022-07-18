@@ -9,13 +9,31 @@ pub struct Context {
 }
 
 impl Context {
-  pub fn get_value<S>(&self, path: S) -> Option<&Value>
+  pub fn new() -> Self {
+    Self::default()
+  }
+
+  pub fn to_value(self) -> Value {
+    Value::Object(self.contents)
+  }
+}
+
+pub trait GetContents {
+  fn contents(&self) -> &HashMap<String, Value>;
+}
+
+pub trait GetContentsMut {
+  fn contents_mut(&mut self) -> &mut HashMap<String, Value>;
+}
+
+pub trait GetValue: GetContents {
+  fn get_value<S>(&self, path: S) -> Option<&Value>
   where
     S: ToString,
   {
     let path = path.to_string();
     let mut path = path.split('.');
-    let mut result = self.contents.get(path.next().unwrap());
+    let mut result = self.contents().get(path.next().unwrap());
 
     for name in path {
       result = match &result {
@@ -28,17 +46,17 @@ impl Context {
     result
   }
 
-  pub fn get_bool<S>(&self, value: S) -> Option<bool>
+  fn get_bool<S>(&self, value: S) -> bool
   where
     S: ToString,
   {
-    match self.get_value(value)? {
-      Value::Bool(boolean) => Some(*boolean),
-      _ => None,
+    match self.get_value(value) {
+      Some(Value::Bool(boolean)) => *boolean,
+      _ => false,
     }
   }
 
-  pub fn get_string<S>(&self, value: S) -> Option<&String>
+  fn get_string<S>(&self, value: S) -> Option<&String>
   where
     S: ToString,
   {
@@ -48,7 +66,7 @@ impl Context {
     }
   }
 
-  pub fn get_list<S>(&self, value: S) -> Option<&Vec<Value>>
+  fn get_list<S>(&self, value: S) -> Option<&Vec<Value>>
   where
     S: ToString,
   {
@@ -58,7 +76,7 @@ impl Context {
     }
   }
 
-  pub fn get_object<S>(&self, value: S) -> Option<&HashMap<String, Value>>
+  fn get_object<S>(&self, value: S) -> Option<&HashMap<String, Value>>
   where
     S: ToString,
   {
@@ -69,80 +87,135 @@ impl Context {
   }
 }
 
-pub trait Builder<T>: Sized {
-  fn contents(&self) -> &HashMap<String, Value>;
-  fn contents_mut(&mut self) -> &mut HashMap<String, Value>;
-
-  fn add_bool<S>(mut self, name: S, boolean: bool) -> Self
+pub trait SetValue: Sized + GetContentsMut {
+  fn set_bool<S>(&mut self, name: S, boolean: bool) -> Option<Value>
   where
     S: ToString,
   {
     self
       .contents_mut()
-      .insert(name.to_string(), Value::Bool(boolean));
-    self
+      .insert(name.to_string(), Value::Bool(boolean))
   }
 
-  fn add_string<S>(mut self, name: S, string: S) -> Self
+  fn set_string<S>(&mut self, name: S, string: S) -> Option<Value>
   where
     S: ToString,
   {
     self
       .contents_mut()
-      .insert(name.to_string(), Value::String(string.to_string()));
-    self
+      .insert(name.to_string(), Value::String(string.to_string()))
   }
 
-  fn add_value<S, C>(mut self, name: S, value: C) -> Self
+  fn set_value<S, C>(&mut self, name: S, value: C) -> Option<Value>
   where
     S: ToString,
     C: Into<Value>,
   {
-    self.contents_mut().insert(name.to_string(), value.into());
-    self
+    self.contents_mut().insert(name.to_string(), value.into())
   }
 
-  fn add_values<S, C, const N: usize>(self, name: S, values: [C; N]) -> Self
+  fn set_list<S, C, const N: usize>(&mut self, name: S, values: [C; N]) -> Option<Value>
   where
     S: ToString,
     C: Into<Value>,
   {
-    self.add_value(name, values.into_iter().map(C::into).collect::<Vec<_>>())
+    self.set_value(name, values.into_iter().map(C::into).collect::<Vec<_>>())
   }
 
-  fn build(self) -> T;
+  fn remove<S>(&mut self, name: S) -> Option<Value>
+  where
+    S: ToString,
+  {
+    self.contents_mut().remove(&name.to_string())
+  }
 }
+
+impl GetContents for HashMap<String, Value> {
+  fn contents(&self) -> &HashMap<String, Value> {
+    self
+  }
+}
+
+impl GetContentsMut for HashMap<String, Value> {
+  fn contents_mut(&mut self) -> &mut HashMap<String, Value> {
+    self
+  }
+}
+
+impl GetContents for Context {
+  fn contents(&self) -> &HashMap<String, Value> {
+    &self.contents
+  }
+}
+
+impl GetContentsMut for Context {
+  fn contents_mut(&mut self) -> &mut HashMap<String, Value> {
+    &mut self.contents
+  }
+}
+
+impl SetValue for Context {}
+impl GetValue for Context {}
+
+impl SetValue for HashMap<String, Value> {}
+impl GetValue for HashMap<String, Value> {}
 
 #[derive(Debug, Clone, Default)]
 pub struct ContextBuilder {
-  contents: HashMap<String, Value>,
+  context: Context,
 }
 
 impl ContextBuilder {
   pub fn new() -> Self {
     Self::default()
   }
-  
-  pub fn from_context(context: Context) -> Self {
-    Self {
-      contents: context.contents
-    }
+
+  pub fn set_bool<S>(mut self, name: S, boolean: bool) -> Self
+  where
+    S: ToString,
+  {
+    self.context.set_bool(name, boolean);
+    self
+  }
+
+  pub fn set_string<S>(mut self, name: S, string: S) -> Self
+  where
+    S: ToString,
+  {
+    self.context.set_string(name, string);
+    self
+  }
+
+  pub fn set_list<S, C, const N: usize>(mut self, name: S, values: [C; N]) -> Self
+  where
+    S: ToString,
+    C: Into<Value>,
+  {
+    self.context.set_list(name, values);
+    self
+  }
+
+  pub fn set_value<S, C>(mut self, name: S, value: C) -> Self
+  where
+    S: ToString,
+    C: Into<Value>,
+  {
+    self.context.set_value(name, value);
+    self
+  }
+
+  pub fn build(self) -> Context {
+    self.context
+  }
+
+  pub fn build_to_value(self) -> Value {
+    self.build().to_value()
   }
 }
 
-impl Builder<Context> for ContextBuilder {
-  fn contents(&self) -> &HashMap<String, Value> {
-    &self.contents
-  }
-
-  fn contents_mut(&mut self) -> &mut HashMap<String, Value> {
-    &mut self.contents
-  }
-
-  fn build(self) -> Context {
-    Context {
-      contents: self.contents,
-    }
+impl From<Context> for ContextBuilder {
+  fn from(context: Context) -> Self {
+    Self { context }
   }
 }
 
@@ -152,37 +225,17 @@ pub enum Value {
   String(String),
   List(Vec<Value>),
   Object(HashMap<String, Value>),
-  None,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ObjectBuilder {
-  contents: HashMap<String, Value>,
-}
-
-impl ObjectBuilder {
-  pub fn new() -> Self {
-    Self::default()
+impl From<Context> for Value {
+  fn from(context: Context) -> Self {
+    Value::Object(context.contents)
   }
 }
 
-impl Builder<Value> for ObjectBuilder {
-  fn contents(&self) -> &HashMap<String, Value> {
-    &self.contents
-  }
-
-  fn contents_mut(&mut self) -> &mut HashMap<String, Value> {
-    &mut self.contents
-  }
-
-  fn build(self) -> Value {
-    Value::Object(self.contents)
-  }
-}
-
-impl From<ObjectBuilder> for Value {
-  fn from(builder: ObjectBuilder) -> Self {
-    builder.build()
+impl From<ContextBuilder> for Value {
+  fn from(context: ContextBuilder) -> Self {
+    context.build().into()
   }
 }
 
@@ -230,16 +283,18 @@ impl From<HashMap<&str, Value>> for Value {
 #[cfg(feature = "serde")]
 #[allow(unused_variables)]
 pub mod serde {
-  use crate::context::Context;
-  use crate::context::Value;
+  use std::collections::HashMap;
+  use std::fmt::Display;
+
   use serde::ser::{
     SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
     SerializeTupleStruct, SerializeTupleVariant,
   };
   use serde::Serialize;
-  use std::collections::HashMap;
-  use std::fmt::Display;
   use thiserror::Error;
+
+  use crate::context::Context;
+  use crate::context::Value;
 
   #[derive(Debug)]
   struct Serializer;
@@ -336,7 +391,7 @@ pub mod serde {
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-      Ok(Value::None)
+      Ok(Value::Bool(false))
     }
 
     fn serialize_some<T: ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error>
@@ -648,6 +703,8 @@ pub mod serde {
 
 #[cfg(feature = "serde_json")]
 pub mod serde_json {
+  use crate::context::Value;
+
   impl From<Vec<serde_json::Value>> for Value {
     fn from(array: Vec<serde_json::Value>) -> Self {
       Self::List(array.into_iter().map(Self::from).collect())
@@ -668,7 +725,7 @@ pub mod serde_json {
   impl From<serde_json::Value> for Value {
     fn from(value: serde_json::Value) -> Self {
       match value {
-        serde_json::Value::Null => Self::None,
+        serde_json::Value::Null => Self::from(false),
         serde_json::Value::Bool(boolean) => Self::from(boolean),
         serde_json::Value::Number(number) => Self::from(number.to_string()),
         serde_json::Value::String(string) => Self::from(string),

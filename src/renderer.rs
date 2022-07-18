@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::context::Context;
+use crate::context::{Context, GetValue, SetValue};
 
 #[derive(Error, Debug)]
 #[error("{}")]
@@ -14,7 +14,7 @@ pub enum Error {
 }
 
 pub struct Renderer<'a, W> {
-  context: &'a Context,
+  context: Context,
   source: &'a str,
   writer: W,
 }
@@ -23,7 +23,7 @@ impl<'a, W> Renderer<'a, W>
 where
   W: std::io::Write,
 {
-  pub fn new(context: &'a Context, source: &'a str, writer: W) -> Self {
+  pub fn new(context: Context, source: &'a str, writer: W) -> Self {
     Self {
       context,
       source,
@@ -31,28 +31,24 @@ where
     }
   }
 
-  fn _render(&mut self, text: &'a str) -> Result<(), Error> {
+  fn _render(&mut self, context: Context, text: &'a str) -> Result<(), Error> {
     for token in TokenIter::new(text) {
       match token {
         Item::Normal(text) => write!(self.writer, "{text}")?,
         Item::Var(path) => {
-          let value = self
-            .context
+          let value = context
             .get_string(path)
             .ok_or_else(|| Error::VariableNotFound(path.to_string()))?;
 
           write!(self.writer, "{value}")?;
         }
         Item::If(path, not, true_block, false_block) => {
-          let condition = self
-            .context
-            .get_bool(path)
-            .ok_or_else(|| Error::VariableNotFound(path.to_string()))?;
+          let condition = context.get_bool(path);
 
           if condition ^ not {
-            self._render(true_block)?;
+            self._render(context.clone(), true_block)?;
           } else if let Some(false_block) = false_block {
-            self._render(false_block)?;
+            self._render(context.clone(), false_block)?;
           }
         }
         Item::For(id, path, block) => {
@@ -61,8 +57,11 @@ where
             .get_list(path)
             .ok_or_else(|| Error::VariableNotFound(path.to_string()))?;
 
-          // TODO: for loop
-          write!(self.writer, "{block}")?;
+          for element in list.clone() {
+            let mut context = context.clone();
+            context.set_value(id, element);
+            self._render(context, block)?;
+          }
         }
       }
     }
@@ -71,7 +70,7 @@ where
   }
 
   pub fn render(&mut self) -> Result<(), Error> {
-    self._render(self.source)
+    self._render(self.context.clone(), self.source)
   }
 }
 
