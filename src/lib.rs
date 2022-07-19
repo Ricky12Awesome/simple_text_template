@@ -4,6 +4,7 @@ use std::io::Write;
 
 pub mod context;
 pub mod renderer;
+pub mod tokenizer;
 
 pub fn render_to_writer<C, S, W>(context: C, source: S, writer: W) -> Result<(), Error>
 where
